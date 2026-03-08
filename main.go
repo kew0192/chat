@@ -16,10 +16,8 @@ var users = make(map[*websocket.Conn]bool)
 var messages = []string{}
 var broadcast = make(chan string)
 
-// CORS middleware
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Добавляем CORS заголовки
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
@@ -34,7 +32,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// CORS для WebSocket обработчика
 func corsWebSocket(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -54,7 +51,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	// Отправляем историю сообщений
 	for _, mess := range messages {
 		err := ws.WriteMessage(websocket.TextMessage, []byte(mess))
 		if err != nil {
@@ -79,7 +75,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleMessages() {
 	for {
 		msg := <-broadcast
-		// Сохраняем в историю
 		messages = append(messages, msg)
 		
 		for user := range users {
@@ -96,10 +91,8 @@ func handleMessages() {
 func main() {
 	go handleMessages()
 	
-	// Раздаем статические файлы с CORS
 	http.Handle("/", corsMiddleware(http.FileServer(http.Dir("."))))
 	
-	// WebSocket с CORS
 	http.HandleFunc("/ws", corsWebSocket(handleConnections))
 	
 	port := os.Getenv("PORT")
