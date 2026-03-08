@@ -45,7 +45,22 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		broadcast <- msg
 	}
 }
-
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Добавляем CORS заголовки
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		
+		// Для preflight запросов
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next(w, r)
+	}
+}
 func handleMessages() {
 	for {
 		msg := <-broadcast
@@ -67,8 +82,8 @@ func main() {
 	go handleMessages()
 	
 	// Раздаем статические файлы
-	http.Handle("/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/ws", handleConnections)
+	http.Handle("/", corsMiddleware(http.FileServer(http.Dir("."))))
+	http.HandleFunc("/ws", corsMiddleware(handleConnections))
 	
 	// ВАЖНО: используем порт из переменной окружения
 	port := os.Getenv("PORT")
