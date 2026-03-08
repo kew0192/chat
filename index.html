@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Чат</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h2>WebSocket Чат</h2>
+    
+    <textarea id="messageArea" rows="20" cols="60" readonly></textarea>
+    
+    <br><br>
+    
+    <input type="text" id="inputMessage" size="50" placeholder="Введите сообщение...">
+    <button onclick="sendMessage()">Отправить</button>
+    
+    <button onclick="clearMessages()">Очистить</button>
+    
+    <p id="status">Статус: ❌ Не подключен</p>
+    
+    <script>
+        const messageArea = document.getElementById('messageArea');
+        const inputMessage = document.getElementById('inputMessage');
+        const socket = new WebSocket('ws://' + window.location.host + '/ws');
+
+        socket.onopen = function(event) {
+            console.log('WebSocket соединение открыто');
+            statusDiv.innerHTML = 'Статус: ✅ Подключен';
+            statusDiv.style.color = 'green';
+        };
+
+        socket.onmessage = function(event) {
+            console.log('Получено сообщение:', event.data);
+            
+            messageArea.value += event.data + '\n';
+            
+            messageArea.scrollTop = messageArea.scrollHeight;
+        };
+
+        socket.onclose = function(event) {
+            console.log('WebSocket соединение закрыто');
+            statusDiv.innerHTML = 'Статус: ❌ Отключен';
+            statusDiv.style.color = 'red';
+        };
+        
+        function sendMessage() {
+            const message = inputMessage.value.trim();
+            
+            if (message === '') {
+                alert('Введите сообщение!');
+                return;
+            }
+            
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify(message));
+                
+                inputMessage.value = '';
+            } else {
+                alert('Соединение не установлено!');
+            }
+        }
+        window.onload = function() {
+            console.log('Страница загружена, пытаемся подключиться...');
+        };
+        inputMessage.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+    </script>
+</body>
+</html>
