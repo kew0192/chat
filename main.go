@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
-	"os" // ВАЖНО: добавить этот импорт
+	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -15,6 +15,36 @@ var upgrader = websocket.Upgrader{
 var users = make(map[*websocket.Conn]bool)
 var messages = []string{}
 var broadcast = make(chan string)
+
+// CORS middleware
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Добавляем CORS заголовки
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		
+		// Для preflight запросов
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
+// CORS для WebSocket обработчика
+func corsWebSocket(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -45,22 +75,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		broadcast <- msg
 	}
 }
-func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Добавляем CORS заголовки
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		
-		// Для preflight запросов
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		
-		next(w, r)
-	}
-}
+
 func handleMessages() {
 	for {
 		msg := <-broadcast
@@ -81,16 +96,18 @@ func handleMessages() {
 func main() {
 	go handleMessages()
 	
-	// Раздаем статические файлы
+	// Раздаем статические файлы с CORS
 	http.Handle("/", corsMiddleware(http.FileServer(http.Dir("."))))
-	http.HandleFunc("/ws", corsMiddleware(handleConnections))
 	
-	// ВАЖНО: используем порт из переменной окружения
+	// WebSocket с CORS
+	http.HandleFunc("/ws", corsWebSocket(handleConnections))
+	
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 	
 	log.Printf("Сервер запущен на порту %s", port)
+	log.Printf("Откройте http://localhost:%s в браузере", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
